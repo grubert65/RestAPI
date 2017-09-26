@@ -1,7 +1,7 @@
 # RestAPI
 A very simple perl REST API
 
-#INSTALLATION
+# INSTALLATION
 
 To install this module, run the following commands:
 
@@ -10,7 +10,7 @@ To install this module, run the following commands:
 	make test
 	make install
 
-#SUPPORT AND DOCUMENTATION
+# SUPPORT AND DOCUMENTATION
 
 After installing, you can find documentation for this module with the
 perldoc command.
