@@ -9,7 +9,7 @@ Log::Log4perl->easy_init($DEBUG);
 ok(my $c = RestAPI->new(
         scheme      => 'http',
         server      => 'www.thomas-bayer.com',
-        request     => 'sqlrest',
+        query       => 'sqlrest',
         path        => 'CUSTOMER',
         http_verb   => 'GET',
         encoding    => 'application/xml',

@@ -7,11 +7,11 @@ RestAPI - a base module to interact with a REST API interface
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION = "0.01";
+our $VERSION = "0.02";
 
 =head1 SYNOPSIS
 
@@ -20,11 +20,12 @@ our $VERSION = "0.01";
     # a REST GET request
     my $dumper = RestAPI->new(
         basicAuth   => 1,
+        ssl_opts    => { verify_hostname => 0 },
         username    => "foo",
         password    => "bar",
-        scheme      => 'https', # if missing it is assumed comprised in the server...
+        scheme      => 'https', # if missing it is assumed comprised in the server
         server      => '...',
-        request     => '...',   # (maybe fixed) request part
+        query       => '...',   # (maybe fixed) request part
         path        => '...',   # added alongside the request
         q_params    => '?foo=bar',
         http_verb   => 'GET',            # any http verb...
@@ -38,7 +39,7 @@ our $VERSION = "0.01";
         password    => "bar",
         scheme      => 'https',
         server      => '...',
-        request     => '...',
+        query       => '...',
         path        => '...',
         q_params    => '?foo=bar',
         http_verb   => 'POST',
@@ -53,7 +54,7 @@ our $VERSION = "0.01";
         password    => "bar",
         scheme      => 'https',
         server      => '...',
-        request     => '...',
+        query       => '...',
         path        => '...',
         q_params    => '?foo=bar',
         http_verb   => 'PUT',
@@ -68,7 +69,7 @@ our $VERSION = "0.01";
         password    => "bar",
         scheme      => 'https',
         server      => '...',
-        request     => '...',
+        query       => '...',
         path        => '...',
         q_params    => '?foo=bar',
         http_verb   => 'DELETE',
@@ -144,22 +145,30 @@ use XML::Simple             qw( XMLin );
 use JSON;
 use Log::Log4perl ();
 use LWP::UserAgent ();
+use Encode                  qw( encode );
 
 
-has 'jsonObj'   => ( is => 'rw', isa => 'JSON', default => sub{ JSON->new->allow_nonref } );
+# Basic construction params
+has 'ssl_opts'  => ( is => 'rw', isa => 'HashRef' );
 has 'basicAuth' => ( is => 'rw', isa => 'Bool');
 has 'username'  => ( is => 'rw', isa => 'Str' );
 has 'password'  => ( is => 'rw', isa => 'Str' );
 has 'scheme'    => ( is => 'rw', isa => 'Str' );
 has 'server'    => ( is => 'rw', isa => 'Str' );
-has 'request'   => ( is => 'rw', isa => 'Str' );
+
+# Added construction params
+has 'query'     => ( is => 'rw', isa => 'Str' );
 has 'path'      => ( is => 'rw', isa => 'Str' );
 has 'q_params'  => ( is => 'rw', isa => 'Str' );
 has 'http_verb' => ( is => 'rw', isa => 'Str' );
 has 'payload'   => ( is => 'rw', isa => 'Str' );
 has 'encoding'  => ( is => 'rw', isa => 'Str' );
-has 'debug'     => ( is => 'rw', isa => 'Bool');
-has 'raw'       => ( is => 'rw', isa => 'Str' );
+
+# internal objects
+has 'req'       => ( is => 'ro', isa => 'HTTP::Request', writer => '_set_req' );
+has 'ua'        => ( is => 'ro', isa => 'LWP::UserAgent', writer => '_set_ua' );
+has 'jsonObj'   => ( is => 'ro', isa => 'JSON', default => sub{ JSON->new->allow_nonref } );
+has 'raw'       => ( is => 'ro', isa => 'Str', writer => '_set_raw' );
 has 'log'       => ( 
     is => 'ro', 
     isa => 'Log::Log4perl::Logger',
@@ -167,6 +176,35 @@ has 'log'       => (
         return Log::Log4perl->get_logger( __PACKAGE__ );
     }
 );
+
+sub BUILD {
+    my $self = shift;
+    $self->_set_ua( LWP::UserAgent->new(
+        ssl_opts => $self->ssl_opts,
+    ));
+
+    if ( $self->basicAuth ) {
+        $self->ua->credentials( $self->server, $self->server, $self->username, $self->password );
+    }
+
+    if ( $self->scheme ) {
+        $self->server($self->scheme . '://' . $self->server);
+    } 
+
+    $self->{query} = '/'.$self->{query} unless ( $self->{query} =~ m|^/| );
+    $self->{path} = '/'.$self->{path} unless ( $self->{path} =~ m|^/| );
+    my $url = $self->server;
+    $url .= $self->query if ( $self->query );
+    $url .= $self->path if ( $self->path );
+    $url .= $self->q_params if ( $self->q_params );
+
+    my $h = HTTP::Headers->new;
+    $h->header('Content-Type' => $self->encoding) if ( $self->encoding );
+
+    my $payload;
+    $payload = encode('UTF-8', $self->payload, Encode::FB_CROAK) if ( $self->payload );
+    $self->_set_req( HTTP::Request->new( $self->http_verb, $url, $h, $payload ) )
+}
 
 #===============================================================================
 
@@ -187,47 +225,33 @@ It returns the decoded object or the plain response back.
 sub do {
     my $self = shift;
 
-    my $cmd = 'curl -k1 ';
-    $cmd .= "-H \"Content-type: $self->{encoding}\" " if ( $self->encoding );
-    $cmd .= "-u $self->{username}:$self->{password}"  if ( $self->basicAuth );
-    $cmd .= " -X $self->{http_verb} ";
-    $self->{request} = '/'.$self->{request}           unless ( $self->{request} =~ m|^/| );
-    if ( $self->scheme ) {
-        $cmd .= $self->scheme . '://' . $self->server;
-    } else {
-        $cmd .= $self->server;
-    }
-    $cmd .= $self->request                            if ( $self->request );
-    $cmd .= "/$self->{path}"                          if ( $self->path );
-    $cmd .= $self->{q_params}                         if ( $self->q_params );
-    $cmd .= " -d '$self->{payload}'"                  if ( $self->payload );
-
-    $self->log->debug("REQUEST:\n$cmd\n");
-
-    $self->{raw} = `$cmd`;
-
-    $self->log->debug("Raw Response:");
-    $self->log->debug($self->raw);
     my $outObj;
-
-    # if response string is html, we print as it is...
-    if ( $self->raw =~ /^<html/i ) {
-        return $self->raw;
-    }
-
-    if ( $self->encoding eq 'application/xml' ) {
-        if ( $self->raw =~ /^<\?xml/ ) {
-            $outObj = XMLin( $self->raw );
-        } else {
+    my $resp = $self->ua->request( $self->req );
+    if ( $resp->is_success ) {
+        $self->_set_raw( $resp->decoded_content );
+        $self->log->debug("Raw Response:");
+        $self->log->debug($self->raw);
+         
+        # if response string is html, we print as it is...
+        if ( $self->raw =~ /^<html/i ) {
             return $self->raw;
         }
-    } elsif ( $self->encoding eq 'application/json' ) {
-        $outObj = $self->jsonObj->decode( $self->raw );
-    } else {
-        print "Encoding $self->{encoding} not supported...\n";
-        return $self->raw;
-    }
 
+        if ( $self->encoding eq 'application/xml' ) {
+            if ( $self->raw =~ /^<\?xml/ ) {
+                $outObj = XMLin( $self->raw );
+            } else {
+                return $self->raw;
+            }
+        } elsif ( $self->encoding eq 'application/json' ) {
+            $outObj = $self->jsonObj->decode( $self->raw );
+        } else {
+            print "Encoding $self->{encoding} not supported...\n";
+            return $self->raw;
+        }
+    } else {
+        die "Error: ".$resp->status_line;
+    }
     return $outObj;
 }
 1; 
