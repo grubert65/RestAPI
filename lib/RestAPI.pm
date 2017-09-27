@@ -20,6 +20,7 @@ our $VERSION = "0.02";
     # a REST GET request
     my $dumper = RestAPI->new(
         basicAuth   => 1,
+        realm       => "Some Realm",
         ssl_opts    => { verify_hostname => 0 },
         username    => "foo",
         password    => "bar",
@@ -35,6 +36,7 @@ our $VERSION = "0.02";
     # a REST POST request
     my $dumper = RestAPI->new(
         basicAuth   => 1,
+        realm       => "Some Realm",
         username    => "foo",
         password    => "bar",
         scheme      => 'https',
@@ -50,6 +52,7 @@ our $VERSION = "0.02";
     # a REST UPDATE request
     my $dumper = RestAPI->new(
         basicAuth   => 1,
+        realm       => "Some Realm",
         username    => "foo",
         password    => "bar",
         scheme      => 'https',
@@ -65,6 +68,7 @@ our $VERSION = "0.02";
     # a REST DELETE request
     my $dumper = RestAPI->new(
         basicAuth   => 1,
+        realm       => "Some Realm",
         username    => "foo",
         password    => "bar",
         scheme      => 'https',
@@ -151,6 +155,7 @@ use Encode                  qw( encode );
 # Basic construction params
 has 'ssl_opts'  => ( is => 'rw', isa => 'HashRef' );
 has 'basicAuth' => ( is => 'rw', isa => 'Bool');
+has 'realm'     => ( is => 'rw', isa => 'Str' );
 has 'username'  => ( is => 'rw', isa => 'Str' );
 has 'password'  => ( is => 'rw', isa => 'Str' );
 has 'scheme'    => ( is => 'rw', isa => 'Str' );
@@ -184,18 +189,25 @@ sub BUILD {
     ));
 
     if ( $self->basicAuth ) {
-        $self->ua->credentials( $self->server, $self->server, $self->username, $self->password );
+        $self->ua->credentials( $self->server, $self->realm, $self->username, $self->password );
     }
 
     if ( $self->scheme ) {
         $self->server($self->scheme . '://' . $self->server);
     } 
 
-    $self->{query} = '/'.$self->{query} unless ( $self->{query} =~ m|^/| );
-    $self->{path} = '/'.$self->{path} unless ( $self->{path} =~ m|^/| );
     my $url = $self->server;
-    $url .= $self->query if ( $self->query );
-    $url .= $self->path if ( $self->path );
+
+    if ( $self->query ) {
+        $self->{query} = '/'.$self->{query} unless ( $self->{query} =~ m|^/| );
+        $url .= $self->query;
+    }
+
+    if ( $self->path ) {
+        $self->{path} = '/'.$self->{path} unless ( $self->{path} =~ m|^/| );
+        $url .= $self->path;
+    }
+
     $url .= $self->q_params if ( $self->q_params );
 
     my $h = HTTP::Headers->new;
