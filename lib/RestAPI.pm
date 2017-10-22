@@ -211,11 +211,18 @@ sub BUILD {
     $url .= $self->q_params if ( $self->q_params );
 
     my $h = HTTP::Headers->new;
-    $h->header('Content-Type' => $self->encoding) if ( $self->encoding );
+    $h->content_type($self->encoding) if ( $self->encoding );
 
     my $payload;
     $payload = encode('UTF-8', $self->payload, Encode::FB_CROAK) if ( $self->payload );
-    $self->_set_req( HTTP::Request->new( $self->http_verb, $url, $h, $payload ) )
+    $self->_set_req( HTTP::Request->new( $self->http_verb, $url, $h, $payload ) );
+
+    $self->log->debug("-" x 80);
+    $self->log->debug("Request:");
+    $self->log->debug("Headers: ", join(", ", $h->flatten));
+    $self->log->debug("[$self->{http_verb}]: $url");
+    $self->log->debug("Payload:\n", $payload);
+    $self->log->debug("-" x 80);
 }
 
 #===============================================================================
