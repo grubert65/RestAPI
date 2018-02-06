@@ -3,22 +3,7 @@
 #
 #         FILE: rest-client.pl
 #
-#        USAGE: ./rest-client.pl  
-#                                           # basic options
-#           -ssl_opts   < ssl options>
-#           -basicAuth  < bool>
-#           -realm      < realm >
-#           -username   < username >
-#           -password   < password >
-#           -scheme     < 'http'/'https' >
-#           -server     < "host:port" >
-#                                        # extended options
-#           -query      < query >
-#           -path       < path >
-#           -q_params   < params >
-#           -http_verb  < verb >
-#           -payload    < payload >
-#           -encoding   < encoding >
+#        USAGE: ./rest-client.pl  -config <JSON-encoded config string>
 #
 #  DESCRIPTION: 
 #   performs request and display (eventually decoded) response...
@@ -57,7 +42,7 @@ my $config = decode_json( $config_as_json )
 
 die "server param is mandatory\n" unless ( $config->{server} );
 
-my $r = RestAPI->new( $config )
+my $r = RestAPI->new( %$config )
     or die "Error getting a RestAPI object: $!\n";
 
 my $resp = $r->do();
