@@ -221,7 +221,7 @@ sub BUILD {
     $self->log->debug("Request:");
     $self->log->debug("Headers: ", join(", ", $h->flatten));
     $self->log->debug("[$self->{http_verb}]: $url");
-    $self->log->debug("Payload:\n", $payload);
+    $self->log->debug("Payload:\n", $payload) if ( $payload );
     $self->log->debug("-" x 80);
 }
 
@@ -248,24 +248,28 @@ sub do {
     my $resp = $self->ua->request( $self->req );
     if ( $resp->is_success ) {
         $self->_set_raw( $resp->decoded_content );
+        my $r_encoding = $resp->header("Content_Type");
+        $self->log->debug("-" x 80);
+        $self->log->debug("Response Content-Type:", $r_encoding);
         $self->log->debug("Raw Response:");
         $self->log->debug($self->raw);
+        $self->log->debug("-" x 80);
          
         # if response string is html, we print as it is...
         if ( $self->raw =~ /^<html/i ) {
             return $self->raw;
         }
 
-        if ( $self->encoding eq 'application/xml' ) {
+        if ( $r_encoding eq 'application/xml' ) {
             if ( $self->raw =~ /^<\?xml/ ) {
                 $outObj = XMLin( $self->raw );
             } else {
                 return $self->raw;
             }
-        } elsif ( $self->encoding eq 'application/json' ) {
+        } elsif ( $r_encoding eq 'application/json' ) {
             $outObj = $self->jsonObj->decode( $self->raw );
         } else {
-            print "Encoding $self->{encoding} not supported...\n";
+            print "Encoding $r_encoding not supported...\n";
             return $self->raw;
         }
     } else {
