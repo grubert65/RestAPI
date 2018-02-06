@@ -159,13 +159,13 @@ has 'realm'     => ( is => 'rw', isa => 'Str' );
 has 'username'  => ( is => 'rw', isa => 'Str' );
 has 'password'  => ( is => 'rw', isa => 'Str' );
 has 'scheme'    => ( is => 'rw', isa => 'Str' );
-has 'server'    => ( is => 'rw', isa => 'Str' );
+has 'server'    => ( is => 'rw', isa => 'Str', required => 1 );
 
 # Added construction params
 has 'query'     => ( is => 'rw', isa => 'Str' );
 has 'path'      => ( is => 'rw', isa => 'Str' );
 has 'q_params'  => ( is => 'rw', isa => 'Str' );
-has 'http_verb' => ( is => 'rw', isa => 'Str' );
+has 'http_verb' => ( is => 'rw', isa => 'Str', default => 'GET' );
 has 'payload'   => ( is => 'rw', isa => 'Str' );
 has 'encoding'  => ( is => 'rw', isa => 'Str' );
 
@@ -184,6 +184,7 @@ has 'log'       => (
 
 sub BUILD {
     my $self = shift;
+    $DB::single=1;
     $self->_set_ua( LWP::UserAgent->new(
         ssl_opts => $self->ssl_opts,
     ));
