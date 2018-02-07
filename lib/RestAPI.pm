@@ -184,7 +184,6 @@ has 'log'       => (
 
 sub BUILD {
     my $self = shift;
-    $DB::single=1;
     $self->_set_ua( LWP::UserAgent->new(
         ssl_opts => $self->ssl_opts,
     ));
@@ -269,6 +268,8 @@ sub do {
             }
         } elsif ( $r_encoding eq 'application/json' ) {
             $outObj = $self->jsonObj->decode( $self->raw );
+        } elsif ( $r_encoding eq 'text/plain' ) {
+            $outObj = $self->raw;
         } else {
             print "Encoding $r_encoding not supported...\n";
             return $self->raw;
