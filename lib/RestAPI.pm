@@ -165,6 +165,7 @@ has 'username'  => ( is => 'rw', isa => 'Str' );
 has 'password'  => ( is => 'rw', isa => 'Str' );
 has 'scheme'    => ( is => 'rw', isa => 'Str' );
 has 'server'    => ( is => 'rw', isa => 'Str', required => 1 );
+has 'timeout'   => ( is => 'rw', isa => 'Int', default => 10 );
 
 # Added construction params
 has 'query'     => ( is => 'rw', isa => 'Str' );
@@ -191,6 +192,7 @@ sub BUILD {
     my $self = shift;
     $self->_set_ua( LWP::UserAgent->new(
         ssl_opts => $self->ssl_opts,
+        timeout  => $self->timeout,
     ));
 
     if ( $self->basicAuth ) {
