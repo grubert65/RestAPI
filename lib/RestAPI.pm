@@ -80,7 +80,12 @@ our $VERSION = "0.02";
         encoding    => 'application/xml'
     );
 
-    my $response_object = $dumper->do();
+    my $response_object;
+    try {
+        $response_object = $dumper->do();
+    } catch {
+        die "Error performing request, status line: $!\n";
+    }
     my $raw_response = $dumper->raw();  # the raw response.
 
 =head1 EXPORT
