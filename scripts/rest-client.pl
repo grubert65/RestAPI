@@ -20,27 +20,53 @@ use Getopt::Long    qw( GetOptions );
 use JSON            qw( decode_json );
 use Data::Dumper    qw( Dumper );
 
+use LWP::ConsoleLogger::Everywhere ();
+
 use RestAPI ();
 
 Log::Log4perl->easy_init($DEBUG);
 $Data::Dumper::Indent = 1;
 
 my $config_as_json;
+my $config_file;
 
 sub usage {
     return <<EOT
-Usage: $0   -config < a JSON-encoded configuration snippet >
+Usage: $0   
+    -config         # a JSON-encoded configuration snippet, or
+    -config_file    # a JSON-encoded file
 
 EOT
 }
 
-GetOptions( "config=s" => \$config_as_json ) or die usage();
-die usage() unless ( $config_as_json );
+GetOptions( 
+    "config=s"      => \$config_as_json,
+    "config_file=s" => \$config_file
+) or die usage();
+die usage() unless ( $config_as_json || $config_file );
 
-my $config = decode_json( $config_as_json )
-    or die ( "Error decoding config params: $!\n");
+my $config;
+if ( $config_as_json ) {
+    $config = decode_json( $config_as_json )
+        or die ( "Error decoding config params: $!\n");
+}
+
+if ( $config_file ) {
+    local $/;
+
+    die ("Error, config file not readable") unless ( -f $config_file );
+    open my $fh, "<", $config_file;
+    my $json_txt = <$fh>;
+    close( $fh );
+
+    $config = decode_json( $json_txt )
+        or die ( "Error decoding config params: $!\n");
+}
 
 die "server param is mandatory\n" unless ( $config->{server} );
+
+print "Configuration parameters:\n";
+print Dumper ( $config )."\n";
 
 my $r = RestAPI->new( %$config )
     or die "Error getting a RestAPI object: $!\n";
