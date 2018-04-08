@@ -155,6 +155,7 @@ use JSON;
 use Log::Log4perl ();
 use LWP::UserAgent ();
 use Encode                  qw( encode );
+use Data::Printer;
 
 
 # Basic construction params
@@ -247,8 +248,14 @@ none
 
 =head3 OUTPUT
 
+An array.
+
 It actually executes the REST request.
-It returns the decoded object or the plain response back.
+It returns an array with these items:
+- the decoded object or the plain response back.
+- the hashref of response headers
+
+Or dies in case of errors.
 
 =cut
 
@@ -257,26 +264,30 @@ sub do {
     my $self = shift;
 
     my $outObj;
+    my %headers;
     my $resp = $self->ua->request( $self->req );
     if ( $resp->is_success ) {
+        %headers = $resp->flatten();
         $self->_set_raw( $resp->decoded_content );
         my $r_encoding = $resp->header("Content_Type");
         $self->log->debug("-" x 80);
         $self->log->debug("Response Content-Type:", $r_encoding);
+        $self->log->debug("Response Headers:");
+        $self->log->debug( np( %headers ) );
         $self->log->debug("Raw Response:");
         $self->log->debug($self->raw);
         $self->log->debug("-" x 80);
          
         # if response string is html, we print as it is...
         if ( $self->raw =~ /^<html/i ) {
-            return $self->raw;
+            return ($self->raw, \%headers);
         }
 
         if ( $r_encoding eq 'application/xml' ) {
             if ( $self->raw =~ /^<\?xml/ ) {
                 $outObj = XMLin( $self->raw );
             } else {
-                return $self->raw;
+                return ($self->raw, \%headers);
             }
         } elsif ( $r_encoding eq 'application/json' ) {
             $outObj = $self->jsonObj->decode( $self->raw );
@@ -284,12 +295,12 @@ sub do {
             $outObj = $self->raw;
         } else {
             print "Encoding $r_encoding not supported...\n";
-            return $self->raw;
+            return ($self->raw, \%headers);
         }
     } else {
         die "Error: ".$resp->status_line;
     }
-    return $outObj;
+    return ($outObj, \%headers);
 }
 1; 
  

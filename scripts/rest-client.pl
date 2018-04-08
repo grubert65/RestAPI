@@ -74,13 +74,16 @@ print Dumper ( $config )."\n";
 my $r = RestAPI->new( %$config )
     or die "Error getting a RestAPI object: $!\n";
 
-my $resp = $r->do();
+my ($resp, $headers) = $r->do();
 my $raw  = $r->raw();
 
 if ( $pretty ) {
     my $p = from_json( $raw );
     $raw  = to_json( $p, { pretty => 1 } );
 }
+
+print "Response Headers:\n";
+print Dumper ( $headers );
 
 print "Decoded response:\n";
 print Dumper ( $resp );
