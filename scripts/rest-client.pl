@@ -17,7 +17,7 @@ use strict;
 use warnings;
 use Log::Log4perl   qw( :easy );
 use Getopt::Long    qw( GetOptions );
-use JSON            qw( decode_json );
+use JSON            qw( from_json to_json decode_json );
 use Data::Dumper    qw( Dumper );
 
 use LWP::ConsoleLogger::Everywhere ();
@@ -29,19 +29,22 @@ $Data::Dumper::Indent = 1;
 
 my $config_as_json;
 my $config_file;
+my $pretty=0;
 
 sub usage {
     return <<EOT
 Usage: $0   
     -config         # a JSON-encoded configuration snippet, or
     -config_file    # a JSON-encoded file
+    -pretty         # if set, output is pretty printed
 
 EOT
 }
 
 GetOptions( 
     "config=s"      => \$config_as_json,
-    "config_file=s" => \$config_file
+    "config_file=s" => \$config_file,
+    "pretty"        => \$pretty,
 ) or die usage();
 die usage() unless ( $config_as_json || $config_file );
 
@@ -73,6 +76,11 @@ my $r = RestAPI->new( %$config )
 
 my $resp = $r->do();
 my $raw  = $r->raw();
+
+if ( $pretty ) {
+    my $p = from_json( $raw );
+    $raw  = to_json( $p, { pretty => 1 } );
+}
 
 print "Decoded response:\n";
 print Dumper ( $resp );
