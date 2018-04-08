@@ -168,6 +168,7 @@ has 'server'    => ( is => 'rw', isa => 'Str', required => 1 );
 has 'timeout'   => ( is => 'rw', isa => 'Int', default => 10 );
 
 # Added construction params
+has 'headers'   => ( is => 'rw', isa => 'HashRef', default => sub { {} } );
 has 'query'     => ( is => 'rw', isa => 'Str' );
 has 'path'      => ( is => 'rw', isa => 'Str' );
 has 'q_params'  => ( is => 'rw', isa => 'Str' );
@@ -219,6 +220,10 @@ sub BUILD {
 
     my $h = HTTP::Headers->new;
     $h->content_type($self->encoding) if ( $self->encoding );
+
+    while ( my ( $k, $v ) = each( %{$self->headers} ) ) {
+        $h->header( $k, $v );
+    }
 
     my $payload;
     $payload = encode('UTF-8', $self->payload, Encode::FB_CROAK) if ( $self->payload );
