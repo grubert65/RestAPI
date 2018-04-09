@@ -7,11 +7,11 @@ RestAPI - a base module to interact with a REST API interface
 
 =head1 VERSION
 
-Version 0.04
+Version 0.05
 
 =cut
 
-our $VERSION = "0.04";
+our $VERSION = "0.05";
 
 =head1 SYNOPSIS
 
@@ -292,15 +292,15 @@ sub do {
             return ($self->raw, \%headers);
         }
 
-        if ( $r_encoding eq 'application/xml' ) {
+        if ( $r_encoding =~ m|application/xml| ) {
             if ( $self->raw =~ /^<\?xml/ ) {
                 $outObj = XMLin( $self->raw );
             } else {
                 return ($self->raw, \%headers);
             }
-        } elsif ( $r_encoding eq 'application/json' ) {
+        } elsif ( $r_encoding =~ m|application/json| ) {
             $outObj = $self->jsonObj->decode( $self->raw );
-        } elsif ( $r_encoding eq 'text/plain' ) {
+        } elsif ( $r_encoding =~ m|text/plain| ) {
             $outObj = $self->raw;
         } else {
             print "Encoding $r_encoding not supported...\n";
