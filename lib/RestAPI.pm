@@ -28,7 +28,7 @@ our $VERSION = "0.03";
         server      => '...',
         query       => '...',   # (maybe fixed) request part
         path        => '...',   # added alongside the request
-        q_params    => '?foo=bar',
+        q_params    => { foo => bar },
         http_verb   => 'GET',            # any http verb...
         encoding    => 'application/xml' # or whatever...
     );
@@ -43,7 +43,7 @@ our $VERSION = "0.03";
         server      => '...',
         query       => '...',
         path        => '...',
-        q_params    => '?foo=bar',
+        q_params    => { foo => bar },
         http_verb   => 'POST',
         payload     => '...',
         encoding    => 'application/xml'
@@ -59,7 +59,7 @@ our $VERSION = "0.03";
         server      => '...',
         query       => '...',
         path        => '...',
-        q_params    => '?foo=bar',
+        q_params    => { foo => bar },
         http_verb   => 'PUT',
         payload     => '...',
         encoding    => 'application/xml'
@@ -75,7 +75,7 @@ our $VERSION = "0.03";
         server      => '...',
         query       => '...',
         path        => '...',
-        q_params    => '?foo=bar',
+        q_params    => { foo => bar },
         http_verb   => 'DELETE',
         encoding    => 'application/xml'
     );
@@ -172,7 +172,7 @@ has 'timeout'   => ( is => 'rw', isa => 'Int', default => 10 );
 has 'headers'   => ( is => 'rw', isa => 'HashRef', default => sub { {} } );
 has 'query'     => ( is => 'rw', isa => 'Str' );
 has 'path'      => ( is => 'rw', isa => 'Str' );
-has 'q_params'  => ( is => 'rw', isa => 'Str' );
+has 'q_params'  => ( is => 'rw', isa => 'HashRef', default => sub {{}} );
 has 'http_verb' => ( is => 'rw', isa => 'Str', default => 'GET' );
 has 'payload'   => ( is => 'rw', isa => 'Str' );
 has 'encoding'  => ( is => 'rw', isa => 'Str' );
@@ -217,7 +217,16 @@ sub BUILD {
         $url .= $self->path;
     }
 
-    $url .= $self->q_params if ( $self->q_params );
+    if ( scalar keys %{$self->q_params} ) {
+        $url .= '?';
+        my $params = $self->q_params;
+        my $k = (keys %$params)[0];
+        my $v = delete $params->{$k};
+        $url .= "$k=$v";
+        while ( ( $k, $v ) = each %$params ) {
+            $url .= '&'."$k=$v";
+        }
+    }
 
     my $h = HTTP::Headers->new;
     $h->content_type($self->encoding) if ( $self->encoding );
