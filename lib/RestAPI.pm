@@ -7,11 +7,11 @@ RestAPI - a base module to interact with a REST API interface
 
 =head1 VERSION
 
-Version 0.05
+Version 0.06
 
 =cut
 
-our $VERSION = "0.05";
+our $VERSION = "0.06";
 
 =head1 SYNOPSIS
 
@@ -24,7 +24,7 @@ our $VERSION = "0.05";
         ssl_opts    => { verify_hostname => 0 },
         username    => "foo",
         password    => "bar",
-        scheme      => 'https', # if missing it is assumed comprised in the server
+        scheme      => 'https', # if missing it is assumed comprised in the server or in the query
         server      => '...',
         query       => '...',   # (maybe fixed) request part
         path        => '...',   # added alongside the request
@@ -165,7 +165,7 @@ has 'realm'     => ( is => 'rw', isa => 'Str' );
 has 'username'  => ( is => 'rw', isa => 'Str' );
 has 'password'  => ( is => 'rw', isa => 'Str' );
 has 'scheme'    => ( is => 'rw', isa => 'Str' );
-has 'server'    => ( is => 'rw', isa => 'Str', required => 1 );
+has 'server'    => ( is => 'rw', isa => 'Str' );
 has 'timeout'   => ( is => 'rw', isa => 'Int', default => 10 );
 
 # Added construction params
@@ -205,10 +205,10 @@ sub BUILD {
         $self->server($self->scheme . '://' . $self->server);
     } 
 
-    my $url = $self->server;
+    my $url = $self->server if ( $self->server );
 
     if ( $self->query ) {
-        $self->{query} = '/'.$self->{query} unless ( $self->{query} =~ m|^/| );
+        $self->{query} = '/'.$self->{query} if ( $url );
         $url .= $self->query;
     }
 
