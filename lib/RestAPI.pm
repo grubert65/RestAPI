@@ -7,11 +7,11 @@ RestAPI - a base module to interact with a REST API interface
 
 =head1 VERSION
 
-Version 0.06
+Version 0.07
 
 =cut
 
-our $VERSION = "0.06";
+our $VERSION = "0.07";
 
 =head1 SYNOPSIS
 
@@ -205,7 +205,8 @@ sub BUILD {
         $self->server($self->scheme . '://' . $self->server);
     } 
 
-    my $url = $self->server if ( $self->server );
+    my $url;
+    $url = $self->server if ( $self->server );
 
     if ( $self->query ) {
         $self->{query} = '/'.$self->{query} if ( $url );
