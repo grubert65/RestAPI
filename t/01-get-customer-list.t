@@ -10,6 +10,9 @@ ok(my $c = RestAPI->new(
         scheme      => 'http',
         server      => 'www.thomas-bayer.com',
         query       => 'sqlrest',
+        q_params    => { 
+            k1  => 'v1',
+        },
         path        => 'CUSTOMER',
         http_verb   => 'GET',
         encoding    => 'application/xml',
