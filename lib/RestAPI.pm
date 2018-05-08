@@ -285,11 +285,12 @@ sub do {
         $self->log->debug("Response Content-Type:", $r_encoding);
         $self->log->debug("Response Headers:");
         $self->log->debug( np( %headers ) );
-        if ( !(exists $headers{'Content-Transfer-Encoding'} &&
-            $headers{'Content-Transfer-Encoding'} eq 'binary' )) {
-            $self->log->debug("Raw Response:");
-            $self->log->debug($self->raw);
+        if ( exists $headers{'Content-Transfer-Encoding'} &&
+            $headers{'Content-Transfer-Encoding'} eq 'binary' ) {
+            return ($self->raw, \%headers);
         }
+        $self->log->debug("Raw Response:");
+        $self->log->debug($self->raw);
         $self->log->debug("-" x 80);
          
         # if response string is html, we print as it is...
