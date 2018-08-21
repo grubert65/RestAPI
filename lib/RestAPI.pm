@@ -172,14 +172,15 @@ has 'timeout'   => ( is => 'rw', isa => 'Int', default => 10 );
 # Added construction params
 has 'headers'   => ( is => 'rw', isa => 'HashRef', default => sub { {} } );
 has 'query'     => ( is => 'rw', isa => 'Str' );
-has 'path'      => ( is => 'rw', isa => 'Str' );
-has 'q_params'  => ( is => 'rw', isa => 'HashRef', default => sub {{}} );
+has 'path'      => ( is => 'rw', isa => 'Str', trigger => \&_set_request );
+has 'q_params'  => ( is => 'rw', isa => 'HashRef', default => sub {{}}, trigger => \&_set_q_params );
 has 'http_verb' => ( is => 'rw', isa => 'Str', default => 'GET' );
 has 'payload'   => ( is => 'rw', isa => 'Str' );
 has 'encoding'  => ( is => 'rw', isa => 'Str' );
 
 # internal objects
 has 'req'       => ( is => 'ro', isa => 'HTTP::Request', writer => '_set_req' );
+has 'req_params' => ( is => 'ro', isa => 'Str', default => sub { '' }, writer => '_set_req_params');
 has 'ua'        => ( is => 'ro', isa => 'LWP::UserAgent', writer => '_set_ua' );
 has 'jsonObj'   => ( is => 'ro', isa => 'JSON', default => sub{ JSON->new->allow_nonref } );
 has 'raw'       => ( is => 'ro', isa => 'Str', writer => '_set_raw' );
@@ -206,11 +207,34 @@ sub BUILD {
         $self->server($self->scheme . '://' . $self->server);
     } 
 
+    $self->_set_request();
+}
+
+sub _set_q_params {
+    my $self = shift;
+    my $q_params;
+    $DB::single=1;
+    if ( scalar keys %{$self->q_params} ) {
+        $q_params = '?';
+        my $params = $self->q_params;
+        my $k = (keys %$params)[0]; # we take out the first...
+        my $v = delete $params->{$k};
+        $q_params .= "$k=$v";
+        while ( ( $k, $v ) = each %$params ) {
+            $q_params .= '&'."$k=$v";
+        }
+    }
+    $self->_set_req_params( $q_params );
+}
+
+sub _set_request {
+    my $self = shift;
+
     my $url;
     $url = $self->server if ( $self->server );
 
     if ( $self->query ) {
-        $self->{query} = '/'.$self->{query} if ( $url );
+        $self->{query} = '/'.$self->{query} if ( $url && $self->{query} !~ m|^/|);
         $url .= $self->query;
     }
 
@@ -219,16 +243,8 @@ sub BUILD {
         $url .= $self->path;
     }
 
-    if ( scalar keys %{$self->q_params} ) {
-        $url .= '?';
-        my $params = $self->q_params;
-        my $k = (keys %$params)[0];
-        my $v = delete $params->{$k};
-        $url .= "$k=$v";
-        while ( ( $k, $v ) = each %$params ) {
-            $url .= '&'."$k=$v";
-        }
-    }
+    $DB::single=1;
+    $url .= $self->req_params;
 
     my $h = HTTP::Headers->new;
     $h->content_type($self->encoding) if ( $self->encoding );
@@ -239,7 +255,6 @@ sub BUILD {
 
     my $payload;
     $payload = encode('UTF-8', $self->payload, Encode::FB_CROAK) if ( $self->payload );
-    $self->_set_req( HTTP::Request->new( $self->http_verb, $url, $h, $payload ) );
 
     $self->log->debug("-" x 80);
     $self->log->debug("Request:");
@@ -247,6 +262,8 @@ sub BUILD {
     $self->log->debug("[$self->{http_verb}]: $url");
     $self->log->debug("Payload:\n", $payload) if ( $payload );
     $self->log->debug("-" x 80);
+
+    $self->_set_req( HTTP::Request->new( $self->http_verb, $url, $h, $payload ) );
 }
 
 #===============================================================================
