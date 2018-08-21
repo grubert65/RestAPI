@@ -213,7 +213,6 @@ sub BUILD {
 sub _set_q_params {
     my $self = shift;
     my $q_params;
-    $DB::single=1;
     if ( scalar keys %{$self->q_params} ) {
         $q_params = '?';
         my $params = $self->q_params;
@@ -243,7 +242,6 @@ sub _set_request {
         $url .= $self->path;
     }
 
-    $DB::single=1;
     $url .= $self->req_params;
 
     my $h = HTTP::Headers->new;
