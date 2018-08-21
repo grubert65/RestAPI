@@ -58,7 +58,7 @@ if ( $config_file ) {
     local $/;
 
     die ("Error, config file not readable") unless ( -f $config_file );
-    open my $fh, "<", $config_file;
+    open my $fh, "<:encoding(UTF-8)", $config_file;
     my $json_txt = <$fh>;
     close( $fh );
 
