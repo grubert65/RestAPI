@@ -18,7 +18,7 @@ our $VERSION = "0.07";
     use RestAPI;
 
     # a REST GET request
-    my $dumper = RestAPI->new(
+    my $client = RestAPI->new(
         basicAuth   => 1,
         realm       => "Some Realm",
         ssl_opts    => { verify_hostname => 0 },
@@ -35,7 +35,7 @@ our $VERSION = "0.07";
     );
 
     # a REST POST request
-    my $dumper = RestAPI->new(
+    my $client = RestAPI->new(
         basicAuth   => 1,
         realm       => "Some Realm",
         username    => "foo",
@@ -51,7 +51,7 @@ our $VERSION = "0.07";
     );
 
     # a REST UPDATE request
-    my $dumper = RestAPI->new(
+    my $client = RestAPI->new(
         basicAuth   => 1,
         realm       => "Some Realm",
         username    => "foo",
@@ -67,7 +67,7 @@ our $VERSION = "0.07";
     );
 
     # a REST DELETE request
-    my $dumper = RestAPI->new(
+    my $client = RestAPI->new(
         basicAuth   => 1,
         realm       => "Some Realm",
         username    => "foo",
@@ -82,12 +82,12 @@ our $VERSION = "0.07";
     );
 
     try {
-        my ($response_object, $response_headers) = $dumper->do();
+        my ($response_object, $response_headers) = $client->do();
     } catch {
         die "Error performing request, status line: $!\n";
     }
 
-    my $raw_response = $dumper->raw();  # the raw response.
+    my $raw_response = $client->raw();  # the raw response.
 
 =head1 EXPORT
 
