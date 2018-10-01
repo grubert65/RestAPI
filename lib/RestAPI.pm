@@ -7,11 +7,11 @@ RestAPI - a base module to interact with a REST API interface
 
 =head1 VERSION
 
-Version 0.07
+Version 0.08
 
 =cut
 
-our $VERSION = "0.07";
+our $VERSION = "0.08";
 
 =head1 SYNOPSIS
 
@@ -82,7 +82,11 @@ our $VERSION = "0.07";
     );
 
     try {
-        my ($response_object, $response_headers) = $client->do();
+        my $response_data = $client->do();
+
+        # $self->response is the HTTP::Response object
+        # you get back from your request...
+        my %response_headers = $client->response->flatten();
     } catch {
         die "Error performing request, status line: $!\n";
     }
@@ -178,12 +182,13 @@ has 'http_verb' => ( is => 'rw', isa => 'Str', default => 'GET' );
 has 'payload'   => ( is => 'rw', isa => 'Str' );
 has 'encoding'  => ( is => 'rw', isa => 'Str' );
 
-# internal objects
+# other objects
 has 'req'       => ( is => 'ro', isa => 'HTTP::Request', writer => '_set_req' );
-has 'req_params' => ( is => 'ro', isa => 'Str', default => sub { '' }, writer => '_set_req_params');
+has 'req_params' =>( is => 'ro', isa => 'Str', default => sub { '' }, writer => '_set_req_params');
 has 'ua'        => ( is => 'ro', isa => 'LWP::UserAgent', writer => '_set_ua' );
 has 'jsonObj'   => ( is => 'ro', isa => 'JSON', default => sub{ JSON->new->allow_nonref } );
 has 'raw'       => ( is => 'ro', isa => 'Str', writer => '_set_raw' );
+has 'response'  => ( is => 'ro', isa => 'HTTP::Response', writer => '_set_response' );
 has 'log'       => ( 
     is => 'ro', 
     isa => 'Log::Log4perl::Logger',
@@ -266,7 +271,7 @@ sub _set_request {
 
 #===============================================================================
 
-=head2 do
+=head2 do - executes the REST request or dies trying...
 
 =head3 INPUT
 
@@ -274,14 +279,7 @@ none
 
 =head3 OUTPUT
 
-An array.
-
-It actually executes the REST request.
-It returns an array with these items:
-- the decoded object or the plain response back.
-- the hashref of response headers
-
-Or dies in case of errors.
+The response data object or the raw response if undecoded.
 
 =cut
 
@@ -291,11 +289,11 @@ sub do {
 
     my $outObj;
     my %headers;
-    my $resp = $self->ua->request( $self->req );
-    if ( $resp->is_success ) {
-        %headers = $resp->flatten();
-        $self->_set_raw( $resp->decoded_content );
-        my $r_encoding = $resp->header("Content_Type");
+    $self->_set_response( $self->ua->request( $self->req ) );
+    if ( $self->response->is_success ) {
+        %headers = $self->response->flatten();
+        $self->_set_raw( $self->response->decoded_content );
+        my $r_encoding = $self->response->header("Content_Type");
         $self->log->debug("-" x 80);
         $self->log->debug("Response Content-Type:", $r_encoding);
         $self->log->debug("Response Headers:");
@@ -328,9 +326,9 @@ sub do {
             return ($self->raw, \%headers);
         }
     } else {
-        die "Error: ".$resp->status_line;
+        die "Error: ".$self->response->status_line;
     }
-    return ($outObj, \%headers);
+    return $outObj;
 }
 1; 
  
