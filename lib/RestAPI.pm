@@ -212,7 +212,6 @@ sub BUILD {
         $self->server($self->scheme . '://' . $self->server);
     } 
 
-    $self->_set_request();
 }
 
 sub _set_q_params {
@@ -286,6 +285,8 @@ The response data object or the raw response if undecoded.
 #===============================================================================
 sub do {
     my $self = shift;
+
+    $self->_set_request();
 
     my $outObj;
     my %headers;
