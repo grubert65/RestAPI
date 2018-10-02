@@ -1,4 +1,195 @@
 package RestAPI;
+our $VERSION = "0.08";
+use Moose;
+use namespace::autoclean;
+use XML::Simple             qw( XMLin );
+use JSON::XS ();
+use Log::Log4perl ();
+use LWP::UserAgent ();
+use Encode                  qw( encode );
+use Data::Printer;
+
+
+# Basic construction params
+has 'ssl_opts'  => ( is => 'rw', isa => 'HashRef');
+has 'basicAuth' => ( is => 'rw', isa => 'Bool');
+has 'realm'     => ( is => 'rw', isa => 'Str' );
+has 'username'  => ( is => 'rw', isa => 'Str' );
+has 'password'  => ( is => 'rw', isa => 'Str' );
+has 'scheme'    => ( is => 'rw', isa => 'Str' );
+has 'server'    => ( is => 'rw', isa => 'Str' );
+has 'timeout'   => ( is => 'rw', isa => 'Maybe[Int]' );
+
+# Added construction params
+has 'headers'   => ( is => 'rw', isa => 'HashRef', default => sub { {} } );
+has 'query'     => ( is => 'rw', isa => 'Str' );
+has 'path'      => ( is => 'rw', isa => 'Str', trigger => \&_set_request );
+has 'q_params'  => ( is => 'rw', isa => 'HashRef', default => sub {{}}, trigger => \&_set_q_params );
+has 'http_verb' => ( is => 'rw', isa => 'Str', default => 'GET' );
+has 'payload'   => ( is => 'rw', isa => 'Str' );
+has 'encoding'  => ( is => 'rw', isa => 'Str' );
+
+# other objects
+has 'req'       => ( is => 'ro', isa => 'HTTP::Request', writer => '_set_req' );
+has 'req_params' =>( is => 'ro', isa => 'Str', default => sub { '' }, writer => '_set_req_params');
+has 'ua'        => ( is => 'ro', isa => 'LWP::UserAgent', writer => '_set_ua' );
+has 'jsonObj'   => ( is => 'ro', isa => 'JSON::XS', default => sub{ JSON::XS->new->allow_nonref } );
+has 'raw'       => ( is => 'ro', isa => 'Str', writer => '_set_raw' );
+has 'response'  => ( is => 'ro', isa => 'HTTP::Response', writer => '_set_response' );
+has 'log'       => ( 
+    is => 'ro', 
+    isa => 'Maybe[Log::Log4perl::Logger]',
+    default => sub {
+        if(Log::Log4perl->initialized()) {
+            return Log::Log4perl->get_logger( __PACKAGE__ );
+        }
+    }
+);
+
+sub BUILD {
+    my $self = shift;
+    $self->_set_ua( LWP::UserAgent->new(
+        ssl_opts => $self->ssl_opts,
+        timeout  => $self->timeout,
+    ));
+
+    if ( $self->basicAuth ) {
+        $self->ua->credentials( $self->server, $self->realm, $self->username, $self->password );
+    }
+
+    if ( $self->scheme ) {
+        $self->server($self->scheme . '://' . $self->server);
+    } 
+
+}
+
+sub _set_q_params {
+    my $self = shift;
+    my $q_params;
+    if ( scalar keys %{$self->q_params} ) {
+        $q_params = '?';
+        my $params = $self->q_params;
+        my $k = (keys %$params)[0]; # we take out the first...
+        my $v = delete $params->{$k};
+        $q_params .= "$k=$v";
+        while ( ( $k, $v ) = each %$params ) {
+            $q_params .= '&'."$k=$v";
+        }
+    }
+    $self->_set_req_params( $q_params );
+}
+
+sub _set_request {
+    my $self = shift;
+
+    my $url;
+    $url = $self->server if ( $self->server );
+
+    if ( $self->query ) {
+        $self->{query} = '/'.$self->{query} if ( $url && $self->{query} !~ m|^/|);
+        $url .= $self->query;
+    }
+
+    if ( $self->path ) {
+        $self->{path} = '/'.$self->{path} unless ( $self->{path} =~ m|^/| );
+        $url .= $self->path;
+    }
+
+    $url .= $self->req_params;
+
+    my $h = HTTP::Headers->new;
+    $h->content_type($self->encoding) if ( $self->encoding );
+
+    while ( my ( $k, $v ) = each( %{$self->headers} ) ) {
+        $h->header( $k, $v );
+    }
+
+    my $payload;
+    $payload = encode('UTF-8', $self->payload, Encode::FB_CROAK) if ( $self->payload );
+
+    if ( $self->{log} ) {
+        $self->log->debug("-" x 80);
+        $self->log->debug("Request:");
+        $self->log->debug("Headers: ", join(", ", $h->flatten));
+        $self->log->debug("[$self->{http_verb}]: $url");
+        $self->log->debug("Payload:\n", $payload) if ( $payload );
+        $self->log->debug("-" x 80);
+    }
+
+    $self->_set_req( HTTP::Request->new( $self->http_verb, $url, $h, $payload ) );
+}
+
+#===============================================================================
+
+=head2 do - executes the REST request or dies trying...
+
+=head3 INPUT
+
+none
+
+=head3 OUTPUT
+
+The response data object or the raw response if undecoded.
+
+=cut
+
+#===============================================================================
+sub do {
+    my $self = shift;
+
+    $self->_set_request();
+
+    my $outObj;
+    my %headers;
+    $self->_set_response( $self->ua->request( $self->req ) );
+    if ( $self->response->is_success ) {
+        %headers = $self->response->flatten();
+        $self->_set_raw( $self->response->decoded_content );
+        my $r_encoding = $self->response->header("Content_Type");
+        if ( $self->{log} ) {
+            $self->log->debug("-" x 80);
+            $self->log->debug("Response Content-Type:", $r_encoding);
+            $self->log->debug("Response Headers:");
+            $self->log->debug( np( %headers ) );
+            $self->log->debug("-" x 80);
+            $self->log->debug("Raw Response:");
+            $self->log->debug($self->raw);
+            $self->log->debug("-" x 80);
+        }
+        if ( exists $headers{'Content-Transfer-Encoding'} &&
+            $headers{'Content-Transfer-Encoding'} eq 'binary' ) {
+            return ($self->raw, \%headers);
+        }
+         
+        # if response string is html, we print as it is...
+        if ( $self->raw =~ /^<html/i ) {
+            return ($self->raw, \%headers);
+        }
+
+        if ( $r_encoding =~ m|application/xml| ) {
+            if ( $self->raw =~ /^<\?xml/ ) {
+                $outObj = XMLin( $self->raw );
+            } else {
+                return ($self->raw, \%headers);
+            }
+        } elsif ( $r_encoding =~ m|application/json| ) {
+            $outObj = $self->jsonObj->decode( $self->raw );
+        } elsif ( $r_encoding =~ m|text/plain| ) {
+            $outObj = $self->raw;
+        } else {
+            print "Encoding $r_encoding not supported...\n";
+            return ($self->raw, \%headers);
+        }
+    } else {
+        die "Error: ".$self->response->status_line;
+    }
+    return $outObj;
+}
+
+__PACKAGE__->meta->make_immutable;
+
+__END__
+
 #===============================================================================
 
 =head1 NAME
@@ -9,9 +200,6 @@ RestAPI - a base module to interact with a REST API interface
 
 Version 0.08
 
-=cut
-
-our $VERSION = "0.08";
 
 =head1 SYNOPSIS
 
@@ -115,188 +303,6 @@ Copyright 2017 Marco Masetti.
 This program is free software; you can redistribute it and/or modify it
 under the terms of Perl itself.
 
-=head1 SUBROUTINES/METHODS
-
 =cut
 
 #===============================================================================
-use Moose;
-use namespace::autoclean;
-use XML::Simple             qw( XMLin );
-use JSON;
-use Log::Log4perl ();
-use LWP::UserAgent ();
-use Encode                  qw( encode );
-use Data::Printer;
-
-
-# Basic construction params
-has 'ssl_opts'  => ( is => 'rw', isa => 'HashRef' );
-has 'basicAuth' => ( is => 'rw', isa => 'Bool');
-has 'realm'     => ( is => 'rw', isa => 'Str' );
-has 'username'  => ( is => 'rw', isa => 'Str' );
-has 'password'  => ( is => 'rw', isa => 'Str' );
-has 'scheme'    => ( is => 'rw', isa => 'Str' );
-has 'server'    => ( is => 'rw', isa => 'Str' );
-has 'timeout'   => ( is => 'rw', isa => 'Int', default => 10 );
-
-# Added construction params
-has 'headers'   => ( is => 'rw', isa => 'HashRef', default => sub { {} } );
-has 'query'     => ( is => 'rw', isa => 'Str' );
-has 'path'      => ( is => 'rw', isa => 'Str', trigger => \&_set_request );
-has 'q_params'  => ( is => 'rw', isa => 'HashRef', default => sub {{}}, trigger => \&_set_q_params );
-has 'http_verb' => ( is => 'rw', isa => 'Str', default => 'GET' );
-has 'payload'   => ( is => 'rw', isa => 'Str' );
-has 'encoding'  => ( is => 'rw', isa => 'Str' );
-
-# other objects
-has 'req'       => ( is => 'ro', isa => 'HTTP::Request', writer => '_set_req' );
-has 'req_params' =>( is => 'ro', isa => 'Str', default => sub { '' }, writer => '_set_req_params');
-has 'ua'        => ( is => 'ro', isa => 'LWP::UserAgent', writer => '_set_ua' );
-has 'jsonObj'   => ( is => 'ro', isa => 'JSON', default => sub{ JSON->new->allow_nonref } );
-has 'raw'       => ( is => 'ro', isa => 'Str', writer => '_set_raw' );
-has 'response'  => ( is => 'ro', isa => 'HTTP::Response', writer => '_set_response' );
-has 'log'       => ( 
-    is => 'ro', 
-    isa => 'Log::Log4perl::Logger',
-    default => sub {
-        return Log::Log4perl->get_logger( __PACKAGE__ );
-    }
-);
-
-sub BUILD {
-    my $self = shift;
-    $self->_set_ua( LWP::UserAgent->new(
-        ssl_opts => $self->ssl_opts,
-        timeout  => $self->timeout,
-    ));
-
-    if ( $self->basicAuth ) {
-        $self->ua->credentials( $self->server, $self->realm, $self->username, $self->password );
-    }
-
-    if ( $self->scheme ) {
-        $self->server($self->scheme . '://' . $self->server);
-    } 
-
-}
-
-sub _set_q_params {
-    my $self = shift;
-    my $q_params;
-    if ( scalar keys %{$self->q_params} ) {
-        $q_params = '?';
-        my $params = $self->q_params;
-        my $k = (keys %$params)[0]; # we take out the first...
-        my $v = delete $params->{$k};
-        $q_params .= "$k=$v";
-        while ( ( $k, $v ) = each %$params ) {
-            $q_params .= '&'."$k=$v";
-        }
-    }
-    $self->_set_req_params( $q_params );
-}
-
-sub _set_request {
-    my $self = shift;
-
-    my $url;
-    $url = $self->server if ( $self->server );
-
-    if ( $self->query ) {
-        $self->{query} = '/'.$self->{query} if ( $url && $self->{query} !~ m|^/|);
-        $url .= $self->query;
-    }
-
-    if ( $self->path ) {
-        $self->{path} = '/'.$self->{path} unless ( $self->{path} =~ m|^/| );
-        $url .= $self->path;
-    }
-
-    $url .= $self->req_params;
-
-    my $h = HTTP::Headers->new;
-    $h->content_type($self->encoding) if ( $self->encoding );
-
-    while ( my ( $k, $v ) = each( %{$self->headers} ) ) {
-        $h->header( $k, $v );
-    }
-
-    my $payload;
-    $payload = encode('UTF-8', $self->payload, Encode::FB_CROAK) if ( $self->payload );
-
-    $self->log->debug("-" x 80);
-    $self->log->debug("Request:");
-    $self->log->debug("Headers: ", join(", ", $h->flatten));
-    $self->log->debug("[$self->{http_verb}]: $url");
-    $self->log->debug("Payload:\n", $payload) if ( $payload );
-    $self->log->debug("-" x 80);
-
-    $self->_set_req( HTTP::Request->new( $self->http_verb, $url, $h, $payload ) );
-}
-
-#===============================================================================
-
-=head2 do - executes the REST request or dies trying...
-
-=head3 INPUT
-
-none
-
-=head3 OUTPUT
-
-The response data object or the raw response if undecoded.
-
-=cut
-
-#===============================================================================
-sub do {
-    my $self = shift;
-
-    $self->_set_request();
-
-    my $outObj;
-    my %headers;
-    $self->_set_response( $self->ua->request( $self->req ) );
-    if ( $self->response->is_success ) {
-        %headers = $self->response->flatten();
-        $self->_set_raw( $self->response->decoded_content );
-        my $r_encoding = $self->response->header("Content_Type");
-        $self->log->debug("-" x 80);
-        $self->log->debug("Response Content-Type:", $r_encoding);
-        $self->log->debug("Response Headers:");
-        $self->log->debug( np( %headers ) );
-        if ( exists $headers{'Content-Transfer-Encoding'} &&
-            $headers{'Content-Transfer-Encoding'} eq 'binary' ) {
-            return ($self->raw, \%headers);
-        }
-        $self->log->debug("Raw Response:");
-        $self->log->debug($self->raw);
-        $self->log->debug("-" x 80);
-         
-        # if response string is html, we print as it is...
-        if ( $self->raw =~ /^<html/i ) {
-            return ($self->raw, \%headers);
-        }
-
-        if ( $r_encoding =~ m|application/xml| ) {
-            if ( $self->raw =~ /^<\?xml/ ) {
-                $outObj = XMLin( $self->raw );
-            } else {
-                return ($self->raw, \%headers);
-            }
-        } elsif ( $r_encoding =~ m|application/json| ) {
-            $outObj = $self->jsonObj->decode( $self->raw );
-        } elsif ( $r_encoding =~ m|text/plain| ) {
-            $outObj = $self->raw;
-        } else {
-            print "Encoding $r_encoding not supported...\n";
-            return ($self->raw, \%headers);
-        }
-    } else {
-        die "Error: ".$self->response->status_line;
-    }
-    return $outObj;
-}
-
-__PACKAGE__->meta->make_immutable;

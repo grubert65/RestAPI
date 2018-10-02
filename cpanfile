@@ -3,7 +3,7 @@ requires 'perl', '5.16.0';
 
 requires 'Encode';
 requires 'Getopt::Long';
-requires 'JSON';
+requires 'JSON::XS';
 requires 'Log::Log4perl';
 requires 'LWP::UserAgent';
 requires 'LWP::ConsoleLogger::Everywhere';

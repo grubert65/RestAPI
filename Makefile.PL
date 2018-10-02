@@ -21,7 +21,7 @@ WriteMakefile(
     PREREQ_PM => {
         'Encode'            => 0,
         'Getopt::Long'      => 0,
-        'JSON'              => 0,
+        'JSON::XS'          => 0,
         'Log::Log4perl'     => 0,
         'LWP::UserAgent'    => 0,
         'LWP::ConsoleLogger::Everywhere' => 0,
