@@ -1,6 +1,7 @@
 package RestAPI;
 our $VERSION = "0.08";
-use Moose;
+use Moo;
+use Types::Standard         qw( HashRef Bool Str Int );
 use namespace::autoclean;
 use XML::Simple             qw( XMLin );
 use JSON::XS ();
@@ -9,36 +10,30 @@ use LWP::UserAgent ();
 use Encode                  qw( encode );
 use Data::Printer;
 
-
 # Basic construction params
-has 'ssl_opts'  => ( is => 'rw', isa => 'HashRef');
-has 'basicAuth' => ( is => 'rw', isa => 'Bool');
-has 'realm'     => ( is => 'rw', isa => 'Str' );
-has 'username'  => ( is => 'rw', isa => 'Str' );
-has 'password'  => ( is => 'rw', isa => 'Str' );
-has 'scheme'    => ( is => 'rw', isa => 'Str' );
-has 'server'    => ( is => 'rw', isa => 'Str' );
-has 'timeout'   => ( is => 'rw', isa => 'Maybe[Int]' );
+has 'ssl_opts'  => ( is => 'rw', isa => HashRef );
+has 'basicAuth' => ( is => 'rw', isa => Bool);
+has ['realm', 'username', 'password', 'scheme', 'server'] => ( is => 'rw' );
+has 'timeout'   => ( is => 'rw', isa => Int, default => 10 );
 
 # Added construction params
-has 'headers'   => ( is => 'rw', isa => 'HashRef', default => sub { {} } );
-has 'query'     => ( is => 'rw', isa => 'Str' );
-has 'path'      => ( is => 'rw', isa => 'Str', trigger => \&_set_request );
-has 'q_params'  => ( is => 'rw', isa => 'HashRef', default => sub {{}}, trigger => \&_set_q_params );
-has 'http_verb' => ( is => 'rw', isa => 'Str', default => 'GET' );
-has 'payload'   => ( is => 'rw', isa => 'Str' );
-has 'encoding'  => ( is => 'rw', isa => 'Str' );
+has 'headers'   => ( is => 'rw', isa => HashRef, default => sub { {} } );
+has 'query'     => ( is => 'rw', isa => Str );
+has 'path'      => ( is => 'rw', isa => Str, trigger => \&_set_request );
+has 'q_params'  => ( is => 'rw', isa => HashRef, default => sub {{}}, trigger => \&_set_q_params );
+has 'http_verb' => ( is => 'rw', isa => Str, default => 'GET' );
+has 'payload'   => ( is => 'rw', isa => Str );
+has 'encoding'  => ( is => 'rw', isa => Str );
 
 # other objects
-has 'req'       => ( is => 'ro', isa => 'HTTP::Request', writer => '_set_req' );
-has 'req_params' =>( is => 'ro', isa => 'Str', default => sub { '' }, writer => '_set_req_params');
-has 'ua'        => ( is => 'ro', isa => 'LWP::UserAgent', writer => '_set_ua' );
-has 'jsonObj'   => ( is => 'ro', isa => 'JSON::XS', default => sub{ JSON::XS->new->allow_nonref } );
-has 'raw'       => ( is => 'ro', isa => 'Str', writer => '_set_raw' );
-has 'response'  => ( is => 'ro', isa => 'HTTP::Response', writer => '_set_response' );
-has 'log'       => ( 
+has 'req'        => ( is => 'ro', writer => '_set_req' );
+has 'req_params' => ( is => 'ro', writer => '_set_req_params');
+has 'ua'         => ( is => 'ro', writer => '_set_ua' );
+has 'jsonObj'    => ( is => 'ro', default => sub{ JSON::XS->new->allow_nonref } );
+has 'raw'        => ( is => 'ro', writer => '_set_raw' );
+has 'response'   => ( is => 'ro', writer => '_set_response' );
+has 'log'        => ( 
     is => 'ro', 
-    isa => 'Maybe[Log::Log4perl::Logger]',
     default => sub {
         if(Log::Log4perl->initialized()) {
             return Log::Log4perl->get_logger( __PACKAGE__ );
@@ -65,18 +60,12 @@ sub BUILD {
 
 sub _set_q_params {
     my $self = shift;
+    return unless keys %{$self->q_params};
     my $q_params;
-    if ( scalar keys %{$self->q_params} ) {
-        $q_params = '?';
-        my $params = $self->q_params;
-        my $k = (keys %$params)[0]; # we take out the first...
-        my $v = delete $params->{$k};
-        $q_params .= "$k=$v";
-        while ( ( $k, $v ) = each %$params ) {
-            $q_params .= '&'."$k=$v";
-        }
+    while ( my ( $k, $v ) = each %{$self->q_params} ) {
+        $q_params .= '&'."$k=$v";
     }
-    $self->_set_req_params( $q_params );
+    $self->_set_req_params( substr( $q_params, 1, length($q_params) - 1 ) );
 }
 
 sub _set_request {
@@ -95,7 +84,7 @@ sub _set_request {
         $url .= $self->path;
     }
 
-    $url .= $self->req_params;
+    $url .= '?'.$self->req_params if ($self->req_params);
 
     my $h = HTTP::Headers->new;
     $h->content_type($self->encoding) if ( $self->encoding );

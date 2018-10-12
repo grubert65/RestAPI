@@ -2,9 +2,6 @@ use strict;
 use warnings;
 use RestAPI;
 use Test::More;
-use Log::Log4perl qw(:easy);
-
-Log::Log4perl->easy_init($DEBUG);
 
 ok(my $c = RestAPI->new(
         query       => 'http://www.thomas-bayer.com/sqlrest',
