@@ -15,6 +15,7 @@ has 'ssl_opts'  => ( is => 'rw', isa => HashRef );
 has 'basicAuth' => ( is => 'rw', isa => Bool);
 has ['realm', 'username', 'password', 'scheme', 'server'] => ( is => 'rw' );
 has 'timeout'   => ( is => 'rw', isa => Int, default => 10 );
+has 'port'      => ( is => 'rw', isa => Int, default => 80 );
 
 # Added construction params
 has 'headers'   => ( is => 'rw', isa => HashRef, default => sub { {} } );
@@ -48,8 +49,15 @@ sub BUILD {
         timeout  => $self->timeout,
     ));
 
+    $self->server( "$self->{server}:$self->{port}" ) if ( $self->server );
+
     if ( $self->basicAuth ) {
-        $self->ua->credentials( $self->server, $self->realm, $self->username, $self->password );
+        $self->ua->credentials( 
+            $self->server, 
+            $self->realm, 
+            $self->username, 
+            $self->password 
+        );
     }
 
     if ( $self->scheme ) {
@@ -137,7 +145,7 @@ sub do {
         my $r_encoding = $self->response->header("Content_Type");
         if ( $self->{log} ) {
             $self->log->debug("-" x 80);
-            $self->log->debug("Response Content-Type:", $r_encoding);
+            $self->log->debug("Response Content-Type:", $r_encoding) if ( $r_encoding );
             $self->log->debug("Response Headers:");
             $self->log->debug( np( %headers ) );
             $self->log->debug("-" x 80);
@@ -155,6 +163,7 @@ sub do {
             return ($self->raw, \%headers);
         }
 
+        return ($self->raw, \%headers) unless $r_encoding;
         if ( $r_encoding =~ m|application/xml| ) {
             if ( $self->raw =~ /^<\?xml/ ) {
                 $outObj = XMLin( $self->raw );
@@ -165,9 +174,6 @@ sub do {
             $outObj = $self->jsonObj->decode( $self->raw );
         } elsif ( $r_encoding =~ m|text/plain| ) {
             $outObj = $self->raw;
-        } else {
-            print "Encoding $r_encoding not supported...\n";
-            return ($self->raw, \%headers);
         }
     } else {
         die "Error: ".$self->response->status_line;
