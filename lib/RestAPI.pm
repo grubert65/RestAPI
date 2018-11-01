@@ -8,14 +8,14 @@ use JSON::XS ();
 use Log::Log4perl ();
 use LWP::UserAgent ();
 use Encode                  qw( encode );
-use Data::Printer;
 
 # Basic construction params
+has 'server'    => ( is => 'rw', isa => Str );
+has 'port'      => ( is => 'rw', isa => Int );
 has 'ssl_opts'  => ( is => 'rw', isa => HashRef );
 has 'basicAuth' => ( is => 'rw', isa => Bool);
-has ['realm', 'username', 'password', 'scheme', 'server'] => ( is => 'rw' );
-has 'timeout'   => ( is => 'rw', isa => Int, default => 10 );
-has 'port'      => ( is => 'rw', isa => Int, default => 80 );
+has ['realm', 'username', 'password', 'scheme'] => ( is => 'rw' );
+has 'timeout'   => ( is => 'rw', isa => Int );
 
 # Added construction params
 has 'headers'   => ( is => 'rw', isa => HashRef, default => sub { {} } );
@@ -37,6 +37,7 @@ has 'log'        => (
     is => 'ro', 
     default => sub {
         if(Log::Log4perl->initialized()) {
+            use Data::Printer;
             return Log::Log4perl->get_logger( __PACKAGE__ );
         }
     }
@@ -47,9 +48,10 @@ sub BUILD {
     $self->_set_ua( LWP::UserAgent->new(
         ssl_opts => $self->ssl_opts,
         timeout  => $self->timeout,
+        agent    => 'RestAPI/0.0.8',
     ));
 
-    $self->server( "$self->{server}:$self->{port}" ) if ( $self->server );
+    $self->server( "$self->{server}:$self->{port}" ) if ( $self->{server} && $self->{port} );
 
     if ( $self->basicAuth ) {
         $self->ua->credentials( 
@@ -63,7 +65,6 @@ sub BUILD {
     if ( $self->scheme ) {
         $self->server($self->scheme . '://' . $self->server);
     } 
-
 }
 
 sub _set_q_params {
@@ -80,7 +81,7 @@ sub _set_request {
     my $self = shift;
 
     my $url;
-    $url = $self->server if ( $self->server );
+    $url = $self->server if ( $self->{server} );
 
     if ( $self->query ) {
         $self->{query} = '/'.$self->{query} if ( $url && $self->{query} !~ m|^/|);

@@ -1,5 +1,5 @@
 # RestAPI
-A very simple perl REST API
+A very simple perl REST API module that can be used to build API clients.
 
 # INSTALLATION
 

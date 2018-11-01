@@ -6,6 +6,7 @@ use Test::More;
 ok(my $c = RestAPI->new(
         scheme      => 'http',
         server      => 'www.thomas-bayer.com',
+        port        => 80,
         query       => 'sqlrest',
         q_params    => {},
         path        => 'CUSTOMER',
@@ -18,6 +19,7 @@ is( $c->req_params, undef, 'query_string should be undefined...');
 ok($c = RestAPI->new(
         scheme      => 'http',
         server      => 'www.thomas-bayer.com',
+        port        => 80,
         query       => 'sqlrest',
         q_params    => { k1 => 'v1' },
         path        => 'CUSTOMER',
