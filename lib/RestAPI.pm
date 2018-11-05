@@ -8,7 +8,7 @@ use namespace::autoclean;
 use XML::Simple             qw( XMLin XMLout );
 use JSON::XS ();
 use LWP::UserAgent ();
-use Encode                  qw( encode );
+# use Encode                  qw( encode );
 
 # Basic construction params
 has 'server'    => ( is => 'rw', isa => Str );
@@ -31,7 +31,7 @@ has 'encoding'  => ( is => 'rw', isa => Str );
 has 'req'        => ( is => 'ro', writer => '_set_req' );
 has 'req_params' => ( is => 'ro', writer => '_set_req_params');
 has 'ua'         => ( is => 'rw', writer => '_set_ua' );
-has 'jsonObj'    => ( is => 'ro', default => sub{ JSON::XS->new->allow_nonref->convert_blessed } );
+has 'jsonObj'    => ( is => 'ro', default => sub{ JSON::XS->new->utf8->allow_nonref->convert_blessed } );
 has 'raw'        => ( is => 'ro', writer => '_set_raw' );
 has 'response'   => ( is => 'ro', writer => '_set_response' );
 
@@ -112,10 +112,10 @@ sub _set_request {
         $h->header( $k, $v );
     }
 
-    my $payload;
-    $payload = encode('UTF-8', $self->payload, Encode::FB_CROAK) if ( $self->payload );
+#     my $payload;
+#     $payload = encode('UTF-8', $self->payload, Encode::FB_CROAK) if ( $self->payload );
 
-    $self->_set_req( HTTP::Request->new( $self->http_verb, $url, $h, $payload ) );
+    $self->_set_req( HTTP::Request->new( $self->http_verb, $url, $h, $self->payload ) );
 }
 
 #===============================================================================
