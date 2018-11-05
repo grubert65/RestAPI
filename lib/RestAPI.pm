@@ -7,7 +7,6 @@ use Types::Standard         qw( Any HashRef Bool Str Int );
 use namespace::autoclean;
 use XML::Simple             qw( XMLin XMLout );
 use JSON::XS ();
-use Log::Log4perl ();
 use LWP::UserAgent ();
 use Encode                  qw( encode );
 
@@ -26,24 +25,15 @@ has 'path'      => ( is => 'rw', isa => Str, trigger => \&_set_request );
 has 'q_params'  => ( is => 'rw', isa => HashRef, default => sub {{}}, trigger => \&_set_q_params );
 has 'http_verb' => ( is => 'rw', isa => Str, default => 'GET' );
 has 'payload'   => ( is => 'rw', isa => Any, trigger => \&_set_payload );
-has 'encoding'  => ( is => 'rw', isa => Str, default => 'application/json' );
+has 'encoding'  => ( is => 'rw', isa => Str );
 
 # other objects
 has 'req'        => ( is => 'ro', writer => '_set_req' );
 has 'req_params' => ( is => 'ro', writer => '_set_req_params');
 has 'ua'         => ( is => 'rw', writer => '_set_ua' );
-has 'jsonObj'    => ( is => 'ro', default => sub{ JSON::XS->new->allow_nonref } );
+has 'jsonObj'    => ( is => 'ro', default => sub{ JSON::XS->new->allow_nonref->convert_blessed } );
 has 'raw'        => ( is => 'ro', writer => '_set_raw' );
 has 'response'   => ( is => 'ro', writer => '_set_response' );
-has 'log'        => ( 
-    is => 'ro', 
-    default => sub {
-        if(Log::Log4perl->initialized()) {
-            use Data::Printer;
-            return Log::Log4perl->get_logger( __PACKAGE__ );
-        }
-    }
-);
 
 # encodes the payload if not encoded already
 sub _set_payload {
@@ -125,15 +115,6 @@ sub _set_request {
     my $payload;
     $payload = encode('UTF-8', $self->payload, Encode::FB_CROAK) if ( $self->payload );
 
-    if ( $self->{log} ) {
-        $self->log->debug("-" x 80);
-        $self->log->debug("Request:");
-        $self->log->debug("Headers: ", join(", ", $h->flatten));
-        $self->log->debug("[$self->{http_verb}]: $url");
-        $self->log->debug("Payload:\n", $payload) if ( $payload );
-        $self->log->debug("-" x 80);
-    }
-
     $self->_set_req( HTTP::Request->new( $self->http_verb, $url, $h, $payload ) );
 }
 
@@ -163,16 +144,6 @@ sub do {
         %headers = $self->response->flatten();
         $self->_set_raw( $self->response->decoded_content );
         my $r_encoding = $self->response->header("Content_Type");
-        if ( $self->{log} ) {
-            $self->log->debug("-" x 80);
-            $self->log->debug("Response Content-Type:", $r_encoding) if ( $r_encoding );
-            $self->log->debug("Response Headers:");
-            $self->log->debug( np( %headers ) );
-            $self->log->debug("-" x 80);
-            $self->log->debug("Raw Response:");
-            $self->log->debug($self->raw);
-            $self->log->debug("-" x 80);
-        }
         if ( exists $headers{'Content-Transfer-Encoding'} &&
             $headers{'Content-Transfer-Encoding'} eq 'binary' ) {
             return $self->raw;

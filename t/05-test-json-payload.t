@@ -14,6 +14,7 @@ ok(my $c = RestAPI->new(
         scheme    => 'http',
         server    => 'localhost',
         http_verb => 'POST',
+        encoding  => 'application/json',
         payload   => $payload,
         path      => 'post',
     ), 'new');
