@@ -15,36 +15,28 @@
 #===============================================================================
 use strict;
 use warnings;
-use Log::Log4perl   qw( :easy );
 use Getopt::Long    qw( GetOptions );
 use JSON            qw( from_json to_json decode_json );
 use Data::Dumper    qw( Dumper );
-
 use LWP::ConsoleLogger::Everywhere ();
-
 use RestAPI ();
 
-Log::Log4perl->easy_init($DEBUG);
 $Data::Dumper::Indent = 1;
 
 my $config_as_json;
 my $config_file;
-my $pretty=0;
 
 sub usage {
     return <<EOT
 Usage: $0   
     -config         # a JSON-encoded configuration snippet, or
     -config_file    # a JSON-encoded file
-    -pretty         # if set, output is pretty printed
-
 EOT
 }
 
 GetOptions( 
     "config=s"      => \$config_as_json,
     "config_file=s" => \$config_file,
-    "pretty"        => \$pretty,
 ) or die usage();
 die usage() unless ( $config_as_json || $config_file );
 
@@ -66,29 +58,9 @@ if ( $config_file ) {
         or die ( "Error decoding config params: $!\n");
 }
 
-die "server param is mandatory\n" unless ( $config->{server} );
-
 print "Configuration parameters:\n";
 print Dumper ( $config )."\n";
 
 my $r = RestAPI->new( %$config )
     or die "Error getting a RestAPI object: $!\n";
-
 my ($resp, $headers) = $r->do();
-my $raw  = $r->raw();
-
-if ( $pretty ) {
-    my $p = from_json( $raw );
-    $raw  = to_json( $p, { pretty => 1 } );
-}
-
-print "Response Headers:\n";
-print Dumper ( $headers );
-
-print "Decoded response:\n";
-print Dumper ( $resp );
-
-print "RAW Response:\n";
-print $raw."\n";
-
-

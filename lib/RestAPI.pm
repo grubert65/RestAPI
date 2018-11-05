@@ -1,13 +1,14 @@
 package RestAPI;
-our $VERSION = "0.08";
+use v5.14;
+our $VERSION = "0.09";
 use Moo;
-use Types::Standard         qw( HashRef Bool Str Int );
+no warnings 'experimental';
+use Types::Standard         qw( Any HashRef Bool Str Int );
 use namespace::autoclean;
-use XML::Simple             qw( XMLin );
+use XML::Simple             qw( XMLin XMLout );
 use JSON::XS ();
-use Log::Log4perl ();
 use LWP::UserAgent ();
-use Encode                  qw( encode );
+# use Encode                  qw( encode );
 
 # Basic construction params
 has 'server'    => ( is => 'rw', isa => Str );
@@ -23,25 +24,43 @@ has 'query'     => ( is => 'rw', isa => Str );
 has 'path'      => ( is => 'rw', isa => Str, trigger => \&_set_request );
 has 'q_params'  => ( is => 'rw', isa => HashRef, default => sub {{}}, trigger => \&_set_q_params );
 has 'http_verb' => ( is => 'rw', isa => Str, default => 'GET' );
-has 'payload'   => ( is => 'rw', isa => Str );
+has 'payload'   => ( is => 'rw', isa => Any, trigger => \&_set_payload );
 has 'encoding'  => ( is => 'rw', isa => Str );
 
 # other objects
 has 'req'        => ( is => 'ro', writer => '_set_req' );
 has 'req_params' => ( is => 'ro', writer => '_set_req_params');
-has 'ua'         => ( is => 'ro', writer => '_set_ua' );
-has 'jsonObj'    => ( is => 'ro', default => sub{ JSON::XS->new->allow_nonref } );
+has 'ua'         => ( is => 'rw', writer => '_set_ua' );
+has 'jsonObj'    => ( is => 'ro', default => sub{ 
+        return JSON::XS->new
+                ->utf8
+                ->allow_nonref
+                ->convert_blessed
+                ->canonical;     # NOTE: this is time consuming...
+                                # it's needed to use the 
+                                # Test::LWP::UserAgent module
+                                # to test agains a mock server...
+} );
 has 'raw'        => ( is => 'ro', writer => '_set_raw' );
 has 'response'   => ( is => 'ro', writer => '_set_response' );
-has 'log'        => ( 
-    is => 'ro', 
-    default => sub {
-        if(Log::Log4perl->initialized()) {
-            use Data::Printer;
-            return Log::Log4perl->get_logger( __PACKAGE__ );
+
+# encodes the payload if not encoded already
+sub _set_payload {
+    my $self = shift;
+    if ( ref $self->payload ) {
+        my $str;
+        for ( $self->encoding ) {
+            when ( m|xml| ) {
+                $str = XMLout( $self->payload );
+            }
+            when ( m|json| ) {
+                $str = $self->jsonObj->encode( $self->payload );
+            }
         }
+        $self->payload( $str );
     }
-);
+}
+
 
 sub BUILD {
     my $self = shift;
@@ -102,19 +121,10 @@ sub _set_request {
         $h->header( $k, $v );
     }
 
-    my $payload;
-    $payload = encode('UTF-8', $self->payload, Encode::FB_CROAK) if ( $self->payload );
+#     my $payload;
+#     $payload = encode('UTF-8', $self->payload, Encode::FB_CROAK) if ( $self->payload );
 
-    if ( $self->{log} ) {
-        $self->log->debug("-" x 80);
-        $self->log->debug("Request:");
-        $self->log->debug("Headers: ", join(", ", $h->flatten));
-        $self->log->debug("[$self->{http_verb}]: $url");
-        $self->log->debug("Payload:\n", $payload) if ( $payload );
-        $self->log->debug("-" x 80);
-    }
-
-    $self->_set_req( HTTP::Request->new( $self->http_verb, $url, $h, $payload ) );
+    $self->_set_req( HTTP::Request->new( $self->http_verb, $url, $h, $self->payload ) );
 }
 
 #===============================================================================
@@ -137,49 +147,38 @@ sub do {
 
     $self->_set_request();
 
-    my $outObj;
     my %headers;
     $self->_set_response( $self->ua->request( $self->req ) );
     if ( $self->response->is_success ) {
         %headers = $self->response->flatten();
         $self->_set_raw( $self->response->decoded_content );
         my $r_encoding = $self->response->header("Content_Type");
-        if ( $self->{log} ) {
-            $self->log->debug("-" x 80);
-            $self->log->debug("Response Content-Type:", $r_encoding) if ( $r_encoding );
-            $self->log->debug("Response Headers:");
-            $self->log->debug( np( %headers ) );
-            $self->log->debug("-" x 80);
-            $self->log->debug("Raw Response:");
-            $self->log->debug($self->raw);
-            $self->log->debug("-" x 80);
-        }
         if ( exists $headers{'Content-Transfer-Encoding'} &&
             $headers{'Content-Transfer-Encoding'} eq 'binary' ) {
-            return ($self->raw, \%headers);
+            return $self->raw;
         }
          
-        # if response string is html, we print as it is...
-        if ( $self->raw =~ /^<html/i ) {
-            return ($self->raw, \%headers);
-        }
-
-        return ($self->raw, \%headers) unless $r_encoding;
-        if ( $r_encoding =~ m|application/xml| ) {
-            if ( $self->raw =~ /^<\?xml/ ) {
-                $outObj = XMLin( $self->raw );
-            } else {
-                return ($self->raw, \%headers);
+        return $self->raw unless $r_encoding;
+        my $outObj;
+        for ( $r_encoding ) {
+            when ( m|application/xml| ) {
+                if ( $self->raw =~ /^<\?xml/ ) {
+                    $outObj = XMLin( $self->raw );
+                } else {
+                    $outObj = $self->raw;
+                }
             }
-        } elsif ( $r_encoding =~ m|application/json| ) {
-            $outObj = $self->jsonObj->decode( $self->raw );
-        } elsif ( $r_encoding =~ m|text/plain| ) {
-            $outObj = $self->raw;
+            when ( m|application/json| ) {
+                $outObj = $self->jsonObj->decode( $self->raw );
+            }
+            when ( m|text| ) {
+                $outObj = $self->raw;
+            }
         }
+        return $outObj;
     } else {
         die "Error: ".$self->response->status_line;
     }
-    return $outObj;
 }
 
 __PACKAGE__->meta->make_immutable;
@@ -194,7 +193,7 @@ RestAPI - a base module to interact with a REST API interface
 
 =head1 VERSION
 
-Version 0.08
+Version 0.09
 
 
 =head1 SYNOPSIS
