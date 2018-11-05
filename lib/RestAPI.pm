@@ -26,7 +26,7 @@ has 'path'      => ( is => 'rw', isa => Str, trigger => \&_set_request );
 has 'q_params'  => ( is => 'rw', isa => HashRef, default => sub {{}}, trigger => \&_set_q_params );
 has 'http_verb' => ( is => 'rw', isa => Str, default => 'GET' );
 has 'payload'   => ( is => 'rw', isa => Any, trigger => \&_set_payload );
-has 'encoding'  => ( is => 'rw', isa => Str );
+has 'encoding'  => ( is => 'rw', isa => Str, default => 'application/json' );
 
 # other objects
 has 'req'        => ( is => 'ro', writer => '_set_req' );
@@ -100,7 +100,6 @@ sub _set_q_params {
 sub _set_request {
     my $self = shift;
 
-    $DB::single=1;
     my $url;
     $url = $self->server if ( $self->{server} );
 
