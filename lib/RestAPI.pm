@@ -31,15 +31,11 @@ has 'encoding'  => ( is => 'rw', isa => Str );
 has 'req'        => ( is => 'ro', writer => '_set_req' );
 has 'req_params' => ( is => 'ro', writer => '_set_req_params');
 has 'ua'         => ( is => 'rw', writer => '_set_ua' );
-has 'jsonObj'    => ( is => 'ro', default => sub{ 
+has 'jsonObj'    => ( is => 'ro', default => sub { 
         return JSON::XS->new
                 ->utf8
                 ->allow_nonref
-                ->convert_blessed
-                ->canonical;     # NOTE: this is time consuming...
-                                # it's needed to use the 
-                                # Test::LWP::UserAgent module
-                                # to test agains a mock server...
+                ->convert_blessed;
 } );
 has 'raw'        => ( is => 'ro', writer => '_set_raw' );
 has 'response'   => ( is => 'ro', writer => '_set_response' );
