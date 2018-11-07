@@ -145,36 +145,37 @@ sub do {
 
     my %headers;
     $self->_set_response( $self->ua->request( $self->req ) );
-    if ( $self->response->is_success ) {
-        %headers = $self->response->flatten();
-        $self->_set_raw( $self->response->decoded_content );
-        my $r_encoding = $self->response->header("Content_Type");
-        if ( exists $headers{'Content-Transfer-Encoding'} &&
-            $headers{'Content-Transfer-Encoding'} eq 'binary' ) {
-            return $self->raw;
-        }
-         
-        return $self->raw unless $r_encoding;
-        my $outObj;
-        for ( $r_encoding ) {
-            when ( m|application/xml| ) {
-                if ( $self->raw =~ /^<\?xml/ ) {
-                    $outObj = XMLin( $self->raw );
-                } else {
-                    $outObj = $self->raw;
-                }
-            }
-            when ( m|application/json| ) {
-                $outObj = $self->jsonObj->decode( $self->raw );
-            }
-            when ( m|text| ) {
+
+    die "Error: ".$self->response->status_line
+        unless ( $self->response->is_success );
+
+    %headers = $self->response->flatten();
+    $self->_set_raw( $self->response->decoded_content );
+    if ( exists $headers{'Content-Transfer-Encoding'} &&
+        $headers{'Content-Transfer-Encoding'} eq 'binary' ) {
+        return $self->raw;
+    }
+     
+    my $r_encoding = $self->response->header("Content_Type")
+        or return $self->raw;
+
+    my $outObj;
+    for ( $r_encoding ) {
+        when ( m|application/xml| ) {
+            if ( $self->raw =~ /^<\?xml/ ) {
+                $outObj = XMLin( $self->raw );
+            } else {
                 $outObj = $self->raw;
             }
         }
-        return $outObj;
-    } else {
-        die "Error: ".$self->response->status_line;
+        when ( m|application/json| ) {
+            $outObj = $self->jsonObj->decode( $self->raw );
+        }
+        when ( m|text| ) {
+            $outObj = $self->raw;
+        }
     }
+    return $outObj;
 }
 
 __PACKAGE__->meta->make_immutable;
