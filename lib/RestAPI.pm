@@ -8,7 +8,7 @@ use namespace::autoclean;
 use XML::Simple             qw( XMLin XMLout );
 use JSON::XS ();
 use LWP::UserAgent ();
-# use Encode                  qw( encode );
+use Time::HiRes             qw( gettimeofday tv_interval );
 
 # Basic construction params
 has 'server'    => ( is => 'rw', isa => Str );
@@ -39,6 +39,7 @@ has 'jsonObj'    => ( is => 'ro', default => sub {
 } );
 has 'raw'        => ( is => 'ro', writer => '_set_raw' );
 has 'response'   => ( is => 'ro', writer => '_set_response' );
+has 'metrics'    => ( is => 'ro', isa => HashRef, default => sub { {} } );
 
 # encodes the payload if not encoded already
 sub _set_payload {
@@ -56,7 +57,6 @@ sub _set_payload {
         $self->payload( $str );
     }
 }
-
 
 sub BUILD {
     my $self = shift;
@@ -117,9 +117,6 @@ sub _set_request {
         $h->header( $k, $v );
     }
 
-#     my $payload;
-#     $payload = encode('UTF-8', $self->payload, Encode::FB_CROAK) if ( $self->payload );
-
     $self->_set_req( HTTP::Request->new( $self->http_verb, $url, $h, $self->payload ) );
 }
 
@@ -144,7 +141,9 @@ sub do {
     $self->_set_request();
 
     my %headers;
+    my $t0 = [gettimeofday];
     $self->_set_response( $self->ua->request( $self->req ) );
+    $self->{metrics}->{'response_time'} = tv_interval( $t0, [gettimeofday] );
 
     die "Error: ".$self->response->status_line
         unless ( $self->response->is_success );
