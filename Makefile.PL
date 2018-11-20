@@ -27,6 +27,7 @@ WriteMakefile(
         'LWP::ConsoleLogger::Everywhere' => 0,
         'Moose'             => 0,
         'XML::Simple'       => 0,
+        'Time::HiRes'       => 0,
         'namespace::autoclean' => 0,
     },
     dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
