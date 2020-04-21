@@ -203,6 +203,7 @@ Version 0.09
         ssl_opts    => { verify_hostname => 0 },
         username    => "foo",
         password    => "bar",
+        timeout     => 10,      # in secs
         scheme      => 'https', # if missing it is assumed comprised in the server or in the query
         server      => '...',
         query       => '...',   # (maybe fixed) request part
@@ -220,6 +221,7 @@ Version 0.09
         username    => "foo",
         password    => "bar",
         scheme      => 'https',
+        timeout     => 10,      # in secs
         server      => '...',
         query       => '...',
         path        => '...',
@@ -236,6 +238,7 @@ Version 0.09
         username    => "foo",
         password    => "bar",
         scheme      => 'https',
+        timeout     => 10,      # in secs
         server      => '...',
         query       => '...',
         path        => '...',
@@ -252,6 +255,7 @@ Version 0.09
         username    => "foo",
         password    => "bar",
         scheme      => 'https',
+        timeout     => 10,      # in secs
         server      => '...',
         query       => '...',
         path        => '...',
