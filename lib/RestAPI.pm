@@ -1,6 +1,6 @@
 package RestAPI;
 use v5.14;
-our $VERSION = "0.09";
+our $VERSION = "0.10";
 use Moo;
 no warnings 'experimental';
 use Types::Standard         qw( Any HashRef Bool Str Int );
@@ -120,21 +120,6 @@ sub _set_request {
     $self->_set_req( HTTP::Request->new( $self->http_verb, $url, $h, $self->payload ) );
 }
 
-#===============================================================================
-
-=head2 do - executes the REST request or dies trying...
-
-=head3 INPUT
-
-none
-
-=head3 OUTPUT
-
-The response data object or the raw response if undecoded.
-
-=cut
-
-#===============================================================================
 sub do {
     my $self = shift;
 

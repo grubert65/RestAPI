@@ -27,7 +27,7 @@ WriteMakefile(
         'LWP::ConsoleLogger::Everywhere' => "0.000042",
         'Moo'               => "2.004000",
         'XML::Simple'       => "2.25",
-        'Time::HiRes'       => "1.9764",
+        'Time::HiRes'       => "1.9721",
         'Types::Standard'   => "1.010002",
         'namespace::autoclean' => "0.29",
     },
