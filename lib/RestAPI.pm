@@ -1,6 +1,6 @@
 package RestAPI;
 use v5.14;
-our $VERSION = "0.10";
+our $VERSION = "0.11";
 use Moo;
 no warnings 'experimental';
 use Types::Standard         qw( Any HashRef Bool Str Int );
